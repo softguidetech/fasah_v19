@@ -12,6 +12,64 @@
                         invisible="fasah_bridge_state not in ('queued', 'sent', 'accepted')"/>
             </xpath>
             <xpath expr="//notebook" position="inside">
+                <page string="FasahPay" name="fasah_pay_fields"
+                      invisible="move_type not in ('out_invoice', 'out_refund')">
+                    <group>
+                        <group string="Invoice Category">
+                            <field name="fasah_invoice_category" placeholder="General (default)"/>
+                            <field name="fasah_payment_method" placeholder="Sadad (default)"/>
+                            <field name="fasah_port" invisible="fasah_invoice_category in (False, 'general')" required="fasah_invoice_category not in (False, 'general')"/>
+                        </group>
+                        <group string="Bill of Lading" invisible="fasah_invoice_category != 'bill_of_lading'">
+                            <field name="fasah_bill_of_lading_no" required="fasah_invoice_category == 'bill_of_lading'"/>
+                            <field name="fasah_shipment_type" required="fasah_invoice_category == 'bill_of_lading'"/>
+                            <field name="fasah_doc_ref_no"/>
+                            <field name="fasah_carrier_manifest"/>
+                            <field name="fasah_carrier_manifest_date" required="fasah_invoice_category == 'bill_of_lading' and fasah_carrier_manifest"/>
+                            <field name="fasah_transit_declaration"/>
+                        </group>
+                        <group string="Declaration" invisible="fasah_invoice_category != 'declaration'">
+                            <field name="fasah_declaration_number" required="fasah_invoice_category == 'declaration'"/>
+                            <field name="fasah_declaration_date" required="fasah_invoice_category == 'declaration'"/>
+                            <field name="fasah_declaration_type" required="fasah_invoice_category == 'declaration'"/>
+                            <field name="fasah_bill_number"/>
+                            <field name="fasah_bill_of_lading_no"/>
+                        </group>
+                        <group string="Importer" invisible="fasah_invoice_category != 'importer'">
+                            <field name="fasah_importer_number" required="fasah_invoice_category == 'importer'"/>
+                            <field name="fasah_bill_number"/>
+                            <field name="fasah_bill_of_lading_no"/>
+                        </group>
+                        <group string="Customs Broker" invisible="fasah_invoice_category != 'custom_broker'">
+                            <field name="fasah_customs_broker_license_number" required="fasah_invoice_category == 'custom_broker'"/>
+                            <field name="fasah_broker_license_type" required="fasah_invoice_category == 'custom_broker'"/>
+                            <field name="fasah_bill_number"/>
+                            <field name="fasah_bill_of_lading_no"/>
+                        </group>
+                        <group string="Shipping Agent" invisible="fasah_invoice_category != 'shipping_agent'">
+                            <field name="fasah_shipping_agent_number" required="fasah_invoice_category == 'shipping_agent'"/>
+                            <field name="fasah_bill_number"/>
+                            <field name="fasah_bill_of_lading_no"/>
+                        </group>
+                        <group string="General" invisible="fasah_invoice_category not in (False, 'general')">
+                            <field name="fasah_company_name"/>
+                            <field name="fasah_company_registration_number"/>
+                            <field name="fasah_bill_number"/>
+                        </group>
+                    </group>
+                    <group string="Consumer (empty = from the customer)">
+                        <group>
+                            <field name="fasah_customer_vat_number"/>
+                            <field name="fasah_consumer_company_name_en"/>
+                            <field name="fasah_consumer_company_name_ar"/>
+                        </group>
+                        <group>
+                            <field name="fasah_consumer_email"/>
+                            <field name="fasah_consumer_mobile"/>
+                            <field name="fasah_consumer_user_id" invisible="fasah_invoice_category != 'bill_of_lading'"/>
+                        </group>
+                    </group>
+                </page>
                 <page string="فسح" name="fasah_bridge" invisible="fasah_bridge_state == 'not_sent'">
                     <group>
                         <field name="fasah_bridge_state"/>

@@ -21,8 +21,8 @@ STATES = [
     ('error', 'Error'),
 ]
 
-# Optional FasahPay fields sent to the bridge when this database also has the FasahPay Connector
-# installed (same field names, "fasah_" prefix). Without it the bridge uses its defaults (General).
+# FasahPay fields sent to the bridge in the "fasah" block (FasahPay tab on the invoice).
+# Empty category = the bridge default (General).
 FASAH_FIELDS = [
     'invoice_category', 'payment_method', 'bill_of_lading_no', 'doc_ref_no', 'carrier_manifest',
     'carrier_manifest_date', 'transit_declaration', 'declaration_number', 'declaration_date',
@@ -31,6 +31,21 @@ FASAH_FIELDS = [
     'shipment_type', 'port', 'customer_vat_number', 'consumer_company_name_en',
     'consumer_company_name_ar', 'consumer_email', 'consumer_mobile', 'consumer_user_id',
 ]
+
+# Fields that belong to one category only - not sent when another category is chosen.
+_COMMON = {'invoice_category', 'payment_method', 'customer_vat_number', 'consumer_company_name_en',
+           'consumer_company_name_ar', 'consumer_email', 'consumer_mobile', 'consumer_user_id'}
+CATEGORY_KEYS = {
+    'bill_of_lading': _COMMON | {'bill_of_lading_no', 'doc_ref_no', 'carrier_manifest', 'carrier_manifest_date',
+                                 'transit_declaration', 'shipment_type', 'port'},
+    'declaration': _COMMON | {'declaration_number', 'declaration_date', 'declaration_type', 'bill_number',
+                              'bill_of_lading_no', 'port'},
+    'importer': _COMMON | {'importer_number', 'bill_number', 'bill_of_lading_no', 'port'},
+    'custom_broker': _COMMON | {'customs_broker_license_number', 'broker_license_type', 'bill_number',
+                                'bill_of_lading_no', 'port'},
+    'shipping_agent': _COMMON | {'shipping_agent_number', 'bill_number', 'bill_of_lading_no', 'port'},
+    'general': _COMMON | {'company_name', 'company_registration_number', 'bill_number'},
+}
 
 
 class AccountMove(models.Model):
@@ -57,7 +72,10 @@ class AccountMove(models.Model):
         lines = self.invoice_line_ids.filtered(lambda l: l.display_type == 'product')
         partner = self.partner_id.commercial_partner_id
         fasah = {}
+        allowed = CATEGORY_KEYS.get(self.fasah_invoice_category or 'general', set(FASAH_FIELDS))             if 'fasah_invoice_category' in self._fields else set(FASAH_FIELDS)
         for key in FASAH_FIELDS:
+            if key not in allowed:
+                continue
             field = 'fasah_' + key
             if field in self._fields and self[field]:
                 value = self[field]
@@ -96,6 +114,39 @@ class AccountMove(models.Model):
             'fasah': fasah,
         }
 
+    # Same mandatory fields as the FasahPay Connector checks on the bridge side; checked here
+    # first so the user gets the message before anything is sent.
+    _FASAH_BRIDGE_REQUIRED = {
+        'bill_of_lading': [('fasah_bill_of_lading_no', 'Bill of Lading No.'), ('fasah_port', 'Port'),
+                           ('fasah_shipment_type', 'Shipment Type')],
+        'declaration': [('fasah_declaration_number', 'Declaration Number'),
+                        ('fasah_declaration_date', 'Declaration Date'),
+                        ('fasah_declaration_type', 'Declaration Type'), ('fasah_port', 'Port')],
+        'importer': [('fasah_importer_number', 'Importer Number'), ('fasah_port', 'Port')],
+        'custom_broker': [('fasah_customs_broker_license_number', 'Broker License Number'),
+                          ('fasah_broker_license_type', 'Broker License Type'), ('fasah_port', 'Port')],
+        'shipping_agent': [('fasah_shipping_agent_number', 'Shipping Agent Number'), ('fasah_port', 'Port')],
+    }
+
+    def _fasah_bridge_check_required(self):
+        self.ensure_one()
+        category = self.fasah_invoice_category or 'general'
+        missing = [label for fname, label in self._FASAH_BRIDGE_REQUIRED.get(category, []) if not self[fname]]
+        partner = self.partner_id.commercial_partner_id
+        if category == 'bill_of_lading' and not (
+                self.fasah_doc_ref_no or (self.fasah_carrier_manifest and self.fasah_carrier_manifest_date)):
+            missing.append('Manifest Doc Ref No. (or Customs Manifest No. + Date)')
+        if category in ('general', 'bill_of_lading') and not (self.fasah_consumer_email or partner.email):
+            missing.append('Consumer Email (or customer e-mail)')
+        if category == 'general' and not (
+                self.fasah_consumer_mobile or partner.phone or getattr(partner, 'mobile', False)):
+            missing.append('Consumer Mobile (or customer phone)')
+        if not (self.fasah_customer_vat_number or partner.vat):
+            missing.append('Customer VAT Number')
+        if missing:
+            raise UserError(_('%(inv)s: fill in these FasahPay fields first (FasahPay tab): %(fields)s',
+                              inv=self.name, fields=', '.join(missing)))
+
     def _fasah_bridge_apply(self, data):
         self.write({
             'fasah_bridge_state': data.get('state') or 'queued',
@@ -106,10 +157,11 @@ class AccountMove(models.Model):
 
     # ------------------------------------------------------------------
     def action_send_to_fasah_bridge(self):
-        url, headers = self._fasah_bridge_config()
         for move in self:
+            url, headers = move._fasah_bridge_config()
             if move.state != 'posted':
                 raise UserError(_('Only posted invoices can be sent to Fasah.'))
+            move._fasah_bridge_check_required()
             try:
                 resp = requests.post(f'{url}/fasah_bridge/v1/invoices',
                                      json=move._fasah_bridge_payload(),
@@ -124,8 +176,8 @@ class AccountMove(models.Model):
         return True
 
     def action_refresh_fasah_bridge_status(self):
-        url, headers = self._fasah_bridge_config()
         for move in self:
+            url, headers = move._fasah_bridge_config()
             try:
                 resp = requests.get(f'{url}/fasah_bridge/v1/invoices/status',
                                     params={'external_ref': move.name},
