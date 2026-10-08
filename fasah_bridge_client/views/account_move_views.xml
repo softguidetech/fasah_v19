@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_move_form_fasah_bridge" model="ir.ui.view">
+        <field name="name">account.move.form.fasah.bridge</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_send_to_fasah_bridge" type="object" string="إرسال لفسح" class="btn-primary"
+                        invisible="state != 'posted' or move_type not in ('out_invoice', 'out_refund') or fasah_bridge_state in ('queued', 'sent', 'accepted', 'paid', 'cancelled')"/>
+                <button name="action_refresh_fasah_bridge_status" type="object" string="تحديث حالة فسح"
+                        invisible="fasah_bridge_state not in ('queued', 'sent', 'accepted')"/>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="فسح" name="fasah_bridge" invisible="fasah_bridge_state == 'not_sent'">
+                    <group>
+                        <field name="fasah_bridge_state"/>
+                        <field name="fasah_bridge_ref"/>
+                        <field name="fasah_bridge_sadad"/>
+                        <field name="fasah_bridge_message"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
