@@ -1,7 +1,7 @@
 {
     'name': 'Fasah Bridge - Client',
-    'version': '19.0.1.2.0',
-    'summary': 'Send to Fasah button on invoices, routed through the Fasah bridge',
+    'version': '19.0.1.4.0',
+    'summary': 'Check invoices against the FasahPay rules and send them through the Fasah bridge',
     'category': 'Accounting',
     'author': 'Ahmed Mohammed Ali Bilal Osman',
     'depends': ['account'],
